@@ -17,7 +17,7 @@ const FLACTagReader = require("./FLACTagReader");
 import type {
   CallbackType,
   LoadCallbackType,
-  StreamCallbackType
+  StreamCallbackType,
   ByteRange
 } from './FlowTypes';
 
