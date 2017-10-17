@@ -2,6 +2,13 @@
 
 The next version of https://github.com/aadsm/JavaScript-ID3-Reader.
 
+## Donations
+A few people have asked me about donations (or even crowdfunding). I would prefer you to consider making a donation to the ["Girls Who Code" NPO](https://www.classy.org/checkout/donation?eid=77372). If you do please send me a message so I can add you as a contributor.
+
+## [Contributors](https://github.com/aadsm/jsmediatags/blob/master/CONTRIBUTORS.md)
+
+## [Contributing](https://github.com/aadsm/jsmediatags/blob/master/CONTRIBUTING.md)
+
 ## Current Support
 
 * File Readers
@@ -12,8 +19,9 @@ The next version of https://github.com/aadsm/JavaScript-ID3-Reader.
   * Buffers/Arrays
 * Tag Readers
   * ID3v1
-  * ID3v2 (unsynchronisation is not supported)
+  * ID3v2 (with unsynchronisation support!)
   * MP4
+  * FLAC
 
 ## How to use
 
@@ -54,6 +62,7 @@ new jsmediatags.Reader("http://www.example.com/music-file.mp3")
 ### Browser
 
 Copy the [`dist/jsmediatags.min.js`](https://github.com/aadsm/jsmediatags/blob/master/dist/jsmediatags.min.js) file into your web application directory and include it with a script tag.
+This library is also available on cdnjs at https://cdnjs.com/libraries/jsmediatags.
 UMD will give you multiple usage options to use it:
 
 ```javascript
@@ -90,6 +99,10 @@ inputTypeFile.addEventListener("change", function(event) {
 ```
 
 You can find more about UMD usage options [here](http://www.forbeslindesay.co.uk/post/46324645400/standalone-browserify-builds).
+
+### Articles
+
+* [Cordova : lire les metadatas des mp3s avec jsmediatags](http://blog.luce.pro/2016/02/28/Phonegap-lire-les-metadatas-des-mp3s-avec-jsmediatags/)
 
 ## Documentation
 
@@ -149,6 +162,21 @@ This is an example of the object passed to the `jsmediatags.read`'s `onSuccess` 
       description: 'Encoding Tool',
       data: 'Lavf53.24.2'
     }
+  }
+}
+```
+
+#### FLAC
+```javascript
+{
+  type: "FLAC",
+  version: "1",
+  tags: {
+    title: "16/12/95",
+    artist: "Sam, The Kid",
+    album: "Pratica(mente)",
+    track: "12",
+    picture: ...
   }
 }
 ```
@@ -224,7 +252,7 @@ New file and tag readers can be implemented by extending the MediaFileReader and
   * `addFileReader(fileReader: typeof MediaFileReader)` - Add a new file reader to the automatic detection system.
   * `addTagReader(tagReader: typeof MediaTagReader)` - Add a new tag reader to the automatic detection system.
   * `setDisallowedXhrHeaders(disallowedXhrHeaders: Array<string>)` - Prevent the library from using specific http headers. This can be useful when dealing with CORS enabled servers you don't control.
-  * `setXhrTimeoutInSec(timeoutInSec: number)` - Sets the timeout time for http requests. Set it to 0 for no timeout at all. It defaults to 30s. 
+  * `setXhrTimeoutInSec(timeoutInSec: number)` - Sets the timeout time for http requests. Set it to 0 for no timeout at all. It defaults to 30s.
 
 ## Development
 

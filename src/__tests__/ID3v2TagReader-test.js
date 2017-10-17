@@ -26,7 +26,7 @@ describe("ID3v2TagReader", function() {
     tagReader = new ID3v2TagReader(mediaFileReader);
   });
 
-  pit("reads header", function() {
+  it("reads header", function() {
     return new Promise(function(resolve, reject) {
       tagReader.read({
         onSuccess: resolve,
@@ -51,7 +51,7 @@ describe("ID3v2TagReader", function() {
     });
   });
 
-  pit("loads the entire tag", function() {
+  it("loads the entire tag", function() {
     mediaFileReader.loadRange = jest.genMockFunction().mockImplementation(
       function() {
         return ArrayFileReader.prototype.loadRange.apply(this, arguments);
@@ -65,14 +65,13 @@ describe("ID3v2TagReader", function() {
       });
       jest.runAllTimers();
     }).then(function(tags) {
-      console.log();
       // The first call is the initial load to figure out the tag ID.
       let callArguments = mediaFileReader.loadRange.mock.calls[1];
       expect(callArguments[0]).toEqual([0, mediaFileReader._array.length-1]);
     });
   });
 
-  pit("reads tags", function() {
+  it("reads tags", function() {
     return new Promise(function(resolve, reject) {
       tagReader.read({
         onSuccess: resolve,
@@ -90,7 +89,7 @@ describe("ID3v2TagReader", function() {
     });
   });
 
-  pit("reads tags as shortcuts", function() {
+  it("reads tags as shortcuts", function() {
     return new Promise(function(resolve, reject) {
       tagReader.read({
         onSuccess: resolve,
@@ -102,7 +101,7 @@ describe("ID3v2TagReader", function() {
     });
   });
 
-  pit("reads all tags when none is specified", function() {
+  it("reads all tags when none is specified", function() {
     return new Promise(function(resolve, reject) {
       tagReader.read({
         onSuccess: resolve,
@@ -115,7 +114,7 @@ describe("ID3v2TagReader", function() {
     });
   });
 
-  pit("reads the specificed tag", function() {
+  it("reads the specificed tag", function() {
     return new Promise(function(resolve, reject) {
       tagReader.setTagsToRead(["TCOM"])
         .read({
@@ -129,7 +128,7 @@ describe("ID3v2TagReader", function() {
     });
   });
 
-  pit("shold ignore empty tags", function() {
+  it("should ignore empty tags", function() {
     return new Promise(function(resolve, reject) {
       tagReader.read({
         onSuccess: resolve,
@@ -138,6 +137,153 @@ describe("ID3v2TagReader", function() {
       jest.runAllTimers();
     }).then(function(tags) {
       expect(Object.keys(tags.tags)).not.toContain("\u0000\u0000\u0000\u0000");
+    });
+  });
+
+  describe("unsynchronisation", function() {
+    it("reads global unsynchronised content", function() {
+      var id3FileContents =
+        new ID3v2TagContents(4, 3)
+          .setFlags({
+            unsynchronisation: true
+          })
+          .addFrame("TIT2", [].concat(
+            [0x00], // encoding
+            bin("The title"), [0x00]
+          ))
+          .addFrame("APIC", [].concat(
+            [0x00], // text encoding
+            bin("image/jpeg"), [0x00],
+            [0x03], // picture type - cover front
+            bin("front cover image"), [0x00],
+            [0x01, 0x02, 0xff, 0x00, 0x03, 0x04, 0x05] // image data
+          ));
+      mediaFileReader = new ArrayFileReader(id3FileContents.toArray());
+      tagReader = new ID3v2TagReader(mediaFileReader);
+
+      return new Promise(function(resolve, reject) {
+        tagReader.read({
+          onSuccess: resolve,
+          onFailure: reject
+        });
+        jest.runAllTimers();
+      }).then(function(tags) {
+        expect(tags.tags.title).toBe("The title");
+        expect(tags.tags.picture.data).toEqual([0x01, 0x02, 0xff, 0x03, 0x04, 0x05]);
+      });
+    });
+
+    it("reads local unsynchronised content", function() {
+      var id3FileContents =
+        new ID3v2TagContents(4, 3)
+          .addFrame("TIT2", [].concat(
+            [0x00], // encoding
+            bin("The title"), [0x00]
+          ))
+          .addFrame("APIC", [].concat(
+            [0x00], // text encoding
+            bin("image/jpeg"), [0x00],
+            [0x03], // picture type - cover front
+            bin("front cover image"), [0x00],
+            [0x01, 0x02, 0xff, 0x00, 0x03, 0x04, 0x05] // image data
+          ), {
+            format: {
+              unsynchronisation: true
+            }
+          });
+      mediaFileReader = new ArrayFileReader(id3FileContents.toArray());
+      tagReader = new ID3v2TagReader(mediaFileReader);
+
+      return new Promise(function(resolve, reject) {
+        tagReader.read({
+          onSuccess: resolve,
+          onFailure: reject
+        });
+        jest.runAllTimers();
+      }).then(function(tags) {
+        expect(tags.tags.picture.data).toEqual([0x01, 0x02, 0xff, 0x03, 0x04, 0x05]);
+      });
+    });
+
+    it("reads unsynchronised content with data length indicator", function() {
+      var id3FileContents =
+        new ID3v2TagContents(4, 3)
+          .addFrame("TIT2", [].concat(
+            [0x00], // encoding
+            bin("The title"), [0x00]
+          ))
+          .addFrame("APIC", [].concat(
+            [0x00], // text encoding
+            bin("image/jpeg"), [0x00],
+            [0x03], // picture type - cover front
+            bin("front cover image"), [0x00],
+            [0x01, 0x02, 0xff, 0x00, 0x03, 0x04, 0x05] // image data
+          ), {
+            format: {
+              unsynchronisation: true,
+              data_length_indicator: true,
+            },
+          }, 37);
+      mediaFileReader = new ArrayFileReader(id3FileContents.toArray());
+      tagReader = new ID3v2TagReader(mediaFileReader);
+
+      return new Promise(function(resolve, reject) {
+        tagReader.read({
+          onSuccess: resolve,
+          onFailure: reject
+        });
+        jest.runAllTimers();
+      }).then(function(tags) {
+        expect(tags.tags.title).toBe("The title");
+        expect(tags.tags.picture.data).toEqual([0x01, 0x02, 0xff, 0x03, 0x04, 0x05]);
+      });
+    });
+  });
+
+  it("should process frames with no content", function() {
+    var id3FileContents =
+      new ID3v2TagContents(4, 3)
+        .addFrame("WOAF") // empty frame contents
+        .addFrame("TIT2", [].concat(
+          [0x00], // encoding
+          bin("The title"), [0x00]
+        ));
+    mediaFileReader = new ArrayFileReader(id3FileContents.toArray());
+    tagReader = new ID3v2TagReader(mediaFileReader);
+
+    return new Promise(function(resolve, reject) {
+      tagReader.read({
+        onSuccess: resolve,
+        onFailure: reject
+      });
+      jest.runAllTimers();
+    }).then(function(tags) {
+      expect("TIT2" in tags.tags).toBeTruthy();
+    });
+  });
+
+  it("should correctly assign shortcuts to when there are multiple instances of the same frame", function() {
+    var id3FileContents =
+      new ID3v2TagContents(4, 3)
+        .addFrame("TIT2", [].concat(
+          [0x00], // encoding
+          bin("The title"), [0x00]
+        ))
+        .addFrame("TIT2", [].concat(
+          [0x00], // text encoding
+          bin("Another title"), [0x00]
+        ));
+    mediaFileReader = new ArrayFileReader(id3FileContents.toArray());
+    tagReader = new ID3v2TagReader(mediaFileReader);
+
+    return new Promise(function(resolve, reject) {
+      tagReader.read({
+        onSuccess: resolve,
+        onFailure: reject
+      });
+      jest.runAllTimers();
+    }).then(function(tags) {
+      expect(tags.tags.title).toBe("The title");
     });
   });
 });

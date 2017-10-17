@@ -12,11 +12,13 @@ const MediaTagReader = require("./MediaTagReader");
 const ID3v1TagReader = require("./ID3v1TagReader");
 const ID3v2TagReader = require("./ID3v2TagReader");
 const MP4TagReader = require("./MP4TagReader");
+const FLACTagReader = require("./FLACTagReader");
 
 import type {
   CallbackType,
   LoadCallbackType,
   StreamCallbackType
+  ByteRange
 } from './FlowTypes';
 
 var mediaFileReaders: Array<Class<MediaFileReader>> = [];
@@ -24,6 +26,16 @@ var mediaTagReaders: Array<Class<MediaTagReader>> = [];
 
 function read(location: Object, callbacks: CallbackType) {
   new Reader(location).read(callbacks);
+}
+
+function isRangeValid(range: ByteRange, fileSize: number) {
+  const invalidPositiveRange = range.offset >= 0
+    && range.offset + range.length >= fileSize
+
+  const invalidNegativeRange = range.offset < 0
+    && (-range.offset > fileSize || range.offset + range.length > 0)
+
+  return !(invalidPositiveRange || invalidNegativeRange)
 }
 
 class Reader {
@@ -86,7 +98,7 @@ class Reader {
       }
     }
 
-    throw new Error("No suitable file reader found for ", this._file);
+    throw new Error("No suitable file reader found for " + this._file);
   }
 
   _getTagReader(fileReader: MediaFileReader, callbacks: CallbackType) {
@@ -117,6 +129,10 @@ class Reader {
 
     for (var i = 0; i < mediaTagReaders.length; i++) {
       var range = mediaTagReaders[i].getTagIdentifierByteRange();
+      if (!isRangeValid(range, fileSize)) {
+        continue;
+      }
+
       if (
         (range.offset >= 0 && range.offset < fileSize / 2) ||
         (range.offset < 0 && range.offset < -fileSize / 2)
@@ -139,10 +155,24 @@ class Reader {
 
         for (var i = 0; i < mediaTagReaders.length; i++) {
           var range = mediaTagReaders[i].getTagIdentifierByteRange();
-          var tagIndentifier = fileReader.getBytesAt(
-            range.offset >= 0 ? range.offset : range.offset + fileSize,
-            range.length
-          );
+          if (!isRangeValid(range, fileSize)) {
+            continue;
+          }
+
+          try {
+            var tagIndentifier = fileReader.getBytesAt(
+              range.offset >= 0 ? range.offset : range.offset + fileSize,
+              range.length
+            );
+          } catch (ex) {
+            if (callbacks.onError) {
+              callbacks.onError({
+                "type": "fileReader",
+                "info": ex.message
+              });
+            }
+            return;
+          }
 
           if (mediaTagReaders[i].canReadTagFormat(tagIndentifier)) {
             callbacks.onSuccess(mediaTagReaders[i]);
@@ -252,23 +282,16 @@ class StreamReader {
 }
 
 Config
-  // $FlowIssue - flow doesn't allow type to pass as their supertype
   .addFileReader(XhrFileReader)
-  // $FlowIssue - flow doesn't allow type to pass as their supertype
   .addFileReader(BlobFileReader)
-  // $FlowIssue - flow doesn't allow type to pass as their supertype
   .addFileReader(ArrayFileReader)
-  // $FlowIssue - flow doesn't allow type to pass as their supertype
   .addTagReader(ID3v2TagReader)
-  // $FlowIssue - flow doesn't allow type to pass as their supertype
   .addTagReader(ID3v1TagReader)
-  // $FlowIssue - flow doesn't allow type to pass as their supertype
-  .addTagReader(MP4TagReader);
+  .addTagReader(MP4TagReader)
+  .addTagReader(FLACTagReader);
 
-if (typeof process !== "undefined") {
-  Config
-    // $FlowIssue - flow doesn't allow type to pass as their supertype
-    .addFileReader(NodeFileReader);
+if (typeof process !== "undefined" && !process.browser) {
+  Config.addFileReader(NodeFileReader);
 }
 
 module.exports = {

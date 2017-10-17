@@ -31,9 +31,11 @@ export type ByteRange = {
   length: number
 };
 
+export type DataType = Array<number> | $TypedArray | string;
+
 export type ChunkType = {
   offset: number,
-  data: Array<number>
+  data: DataType
 };
 
 export type Byte = number;
@@ -45,7 +47,7 @@ export type FrameReaderSignature = (
   length: number,
   data: MediaFileReader,
   flags: ?Object,
-  majorVersion?: string
+  id3header?: TagHeader
 ) => any;
 
 export type TagFrames = {[key: string]: TagFrame};

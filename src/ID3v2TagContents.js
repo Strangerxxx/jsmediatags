@@ -39,7 +39,7 @@ class ID3v2TagContents {
   _major: number;
   _revision: number;
   _contents: ByteArray;
-  _frames: {[key: string]: ByteArray};
+  _frames: {[key: string]: Array<ByteArray>};
   _extendedHeader: {
     UPDATE: number,
     CRC: number,
@@ -202,18 +202,42 @@ class ID3v2TagContents {
     return this;
   }
 
+  /**
+   * noFlagsDataLength - The data length if all flags were set to 0,
+   *   for instance, the length before compression and unsynchronisation.
+   *   This field is only needed when data_length_indicator flag is set.
+   */
   addFrame(
     id: string,
     data: ByteArray,
-    flags?: TagFrameFlags
+    flags?: TagFrameFlags,
+    noFlagsDataLength?: number
   ): ID3v2TagContents {
     var size = 0;
     var frameFlags = [0, 0];
+    if (flags) {
+      flags.message = flags.message || {};
+      flags.format = flags.format || {};
+    }
+    data = data || [];
+
+    var dataLength = data.length;
+    var isTagUnsynchronised = this._contents[FLAGS] & (1<<7);
+    if (isTagUnsynchronised) {
+      var unsynchronisedByteCount = 0;
+
+      for (var i = 0; i < data.length - 1; i++) {
+        if (data[i] === 0xff && data[i+1] === 0x00) {
+          unsynchronisedByteCount++;
+        }
+      }
+      dataLength -= unsynchronisedByteCount;
+    }
 
     if (this._major === 2) {
-      size = getInteger24(data.length);
+      size = getInteger24(dataLength);
     } else if (this._major === 3) {
-      size = getInteger32(data.length);
+      size = getInteger32(dataLength);
       if (flags) {
         frameFlags[0] |= (flags.message.tag_alter_preservation ? 1 : 0) << 7;
         frameFlags[0] |= (flags.message.file_alter_preservation ? 1 : 0) << 6;
@@ -223,7 +247,6 @@ class ID3v2TagContents {
         frameFlags[1] |= (flags.format.grouping_identify ? 1 : 0) << 5;
       }
     } else if (this._major === 4) {
-      size = getSynchsafeInteger32(data.length);
       if (flags) {
         frameFlags[0] |= (flags.message.tag_alter_preservation ? 1 : 0) << 6;
         frameFlags[0] |= (flags.message.file_alter_preservation ? 1 : 0) << 5;
@@ -233,7 +256,11 @@ class ID3v2TagContents {
         frameFlags[1] |= (flags.format.encryption ? 1 : 0) << 2;
         frameFlags[1] |= (flags.format.unsynchronisation ? 1 : 0) << 1;
         frameFlags[1] |= flags.format.data_length_indicator ? 1 : 0;
+        if (flags.format.data_length_indicator) {
+          dataLength += 4;
+        }
       }
+      size = getSynchsafeInteger32(dataLength);
     } else {
       throw Error("Major version not supported");
     }
@@ -242,9 +269,15 @@ class ID3v2TagContents {
       bin(id),
       size,
       frameFlags,
+      flags && flags.format.data_length_indicator && noFlagsDataLength
+        ? getSynchsafeInteger32(noFlagsDataLength)
+        : [],
       data
     );
-    this._frames[id] = frame;
+    if (!this._frames[id]) {
+      this._frames[id] = [];
+    }
+    this._frames[id].push(frame);
     this._addData(this._nextFrameOffset, frame);
 
     this._updateSize();
@@ -313,7 +346,9 @@ class ID3v2TagContents {
 
     for (var frameId in this._frames) {
       if (this._frames.hasOwnProperty(frameId)) {
-        size += this._frames[frameId].length;
+        for (var i = 0, frame; frame = this._frames[frameId][i]; i++) {
+          size += frame.length;
+        }
       }
     }
 

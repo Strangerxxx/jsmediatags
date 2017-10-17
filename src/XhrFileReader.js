@@ -26,13 +26,11 @@ class XhrFileReader extends MediaFileReader {
     timeoutInSec: number
   };
   _url: string;
-  // $FlowIssue - Flow gets confused with module.exports
   _fileData: ChunkedFileData;
 
   constructor(url: string) {
     super();
     this._url = url;
-    // $FlowIssue - Constructor cannot be called on exports
     this._fileData = new ChunkedFileData();
   }
 
@@ -145,7 +143,7 @@ class XhrFileReader extends MediaFileReader {
         /bytes (\d+)-(\d+)\/(?:(\d+)|\*)/i
       );
       if (!parsedContentRange) {
-        throw new Error("FIXME: Unknown Content-Range syntax: ", contentRange);
+        throw new Error("FIXME: Unknown Content-Range syntax: " + contentRange);
       }
 
       return {
@@ -161,7 +159,7 @@ class XhrFileReader extends MediaFileReader {
   loadRange(range: [number, number], callbacks: LoadCallbackType): void {
     var self = this;
 
-    if (self._fileData.hasDataRange(range[0], range[1])) {
+    if (self._fileData.hasDataRange(range[0], Math.min(self._size, range[1]))) {
       setTimeout(callbacks.onSuccess, 1);
       return;
     }
@@ -171,6 +169,9 @@ class XhrFileReader extends MediaFileReader {
     // establishing the connection so getting 10bytes or 1K doesn't really
     // make a difference.
     range = this._roundRangeToChunkMultiple(range);
+
+    // Upper range should not be greater than max file size
+    range[1] = Math.min(self._size, range[1]);
 
     this._makeXHRRequest("GET", range, {
       onSuccess: function(xhr: XMLHttpRequest) {
@@ -194,6 +195,7 @@ class XhrFileReader extends MediaFileReader {
     callbacks: CallbackType
   ) {
     var xhr = this._createXHRObject();
+    xhr.open(method, this._url);
 
     var onXHRLoad = function() {
       // 200 - OK
@@ -245,7 +247,6 @@ class XhrFileReader extends MediaFileReader {
       }
     }
 
-    xhr.open(method, this._url);
     xhr.overrideMimeType("text/plain; charset=x-user-defined");
     if (range) {
       this._setRequestHeader(xhr, "Range", "bytes=" + range[0] + "-" + range[1]);
@@ -289,14 +290,21 @@ class XhrFileReader extends MediaFileReader {
     return character.charCodeAt(0) & 0xff;
   }
 
+  _isWebWorker(): boolean {
+    return (
+      typeof WorkerGlobalScope !== 'undefined' &&
+      self instanceof WorkerGlobalScope
+    );
+  }
+
   _createXHRObject(): XMLHttpRequest {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" && !this._isWebWorker()) {
       // $FlowIssue - flow is not able to recognize this module.
       return new (require("xhr2").XMLHttpRequest)();
     }
 
-    if (window.XMLHttpRequest) {
-      return new window.XMLHttpRequest();
+    if (typeof XMLHttpRequest !== "undefined") {
+      return new XMLHttpRequest();
     }
 
     throw new Error("XMLHttpRequest is not supported");

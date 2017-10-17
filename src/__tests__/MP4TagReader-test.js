@@ -35,6 +35,11 @@ describe("MP4TagReader", function() {
       [0x00, 0x02], // track
       [0x00, 0x09] // total track count
     )),
+    MP4TagContents.createMetadataAtom("disk", "uint8", [].concat(
+      [0x00, 0x00],
+      [0x00, 0x02], // disk
+      [0x00, 0x02] // total disk count
+    )),
     MP4TagContents.createMetadataAtom("©cmt", "text", bin("A Comment")),
     MP4TagContents.createMetadataAtom("cpil", "uint8", [0x01]),
     MP4TagContents.createMetadataAtom("covr", "jpeg", [0x01, 0x02, 0x03])
@@ -53,7 +58,7 @@ describe("MP4TagReader", function() {
     expect(canReadISOM).toBeTruthy();
   });
 
-  pit("reads the type and version", function() {
+  it("reads the type and version", function() {
     return new Promise(function(resolve, reject) {
       tagReader.read({
         onSuccess: resolve,
@@ -66,7 +71,7 @@ describe("MP4TagReader", function() {
     });
   });
 
-  pit("reads string tag", function() {
+  it("reads string tag", function() {
     return new Promise(function(resolve, reject) {
       tagReader.read({
         onSuccess: resolve,
@@ -79,7 +84,7 @@ describe("MP4TagReader", function() {
     });
   });
 
-  pit("reads uint8 tag", function() {
+  it("reads uint8 tag", function() {
     return new Promise(function(resolve, reject) {
       tagReader.read({
         onSuccess: resolve,
@@ -92,7 +97,7 @@ describe("MP4TagReader", function() {
     });
   });
 
-  pit("reads jpeg tag", function() {
+  it("reads jpeg tag", function() {
     return new Promise(function(resolve, reject) {
       tagReader.read({
         onSuccess: resolve,
@@ -107,7 +112,23 @@ describe("MP4TagReader", function() {
     });
   });
 
-  pit("reads all tags", function() {
+  it("reads multiple int tags", function() {
+    return new Promise(function(resolve, reject) {
+      tagReader.read({
+        onSuccess: resolve,
+        onFailure: reject
+      });
+      jest.runAllTimers();
+    }).then(function(tag) {
+      var tags = tag.tags;
+      expect(tags.trkn.data.track).toBe(2);
+      expect(tags.trkn.data.total).toBe(9);
+      expect(tags.disk.data.disk).toBe(2);
+      expect(tags.disk.data.total).toBe(2);
+    });
+  });
+
+  it("reads all tags", function() {
     return new Promise(function(resolve, reject) {
       tagReader.read({
         onSuccess: resolve,
@@ -126,7 +147,7 @@ describe("MP4TagReader", function() {
     });
   });
 
-  pit("creates shorcuts", function() {
+  it("creates shorcuts", function() {
     return new Promise(function(resolve, reject) {
       tagReader.read({
         onSuccess: resolve,
@@ -140,7 +161,7 @@ describe("MP4TagReader", function() {
     });
   });
 
-  pit("reads the specificed tag", function() {
+  it("reads the specificed tag", function() {
     return new Promise(function(resolve, reject) {
       tagReader.setTagsToRead(["©cmt"])
         .read({
@@ -154,7 +175,7 @@ describe("MP4TagReader", function() {
     });
   });
 
-  pit("reads the specificed shortcut tag", function() {
+  it("reads the specificed shortcut tag", function() {
     return new Promise(function(resolve, reject) {
       tagReader.setTagsToRead(["title"])
         .read({
@@ -164,6 +185,27 @@ describe("MP4TagReader", function() {
       jest.runAllTimers();
     }).then(function(tag) {
       expect(Object.keys(tag.tags)).toContain("title");
+    });
+
+    it("reads jpeg tag despite uint8 type", function() {
+      var mp4FileContents = createMP4FileContents([
+        MP4TagContents.createMetadataAtom("covr", "uint8", [0x01, 0x02, 0x03])
+      ]);
+      var mediaFileReader = new ArrayFileReader(mp4FileContents.toArray());
+      var tagReader = new MP4TagReader(mediaFileReader);
+
+      return new Promise(function(resolve, reject) {
+        tagReader.read({
+          onSuccess: resolve,
+          onFailure: reject
+        });
+        jest.runAllTimers();
+      }).then(function(tag) {
+        var tags = tag.tags;
+        expect("covr" in tags).toBeTruthy();
+        expect(tags.covr.data.format).toBe("image/jpeg");
+        expect(tags.covr.data.data).toEqual([0x01, 0x02, 0x03]);
+      });
     });
   });
 });

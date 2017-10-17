@@ -200,6 +200,11 @@ class MP4TagReader extends MediaTagReader {
         "track": data.getByteAt(offset + METADATA_HEADER + 11),
         "total": data.getByteAt(offset + METADATA_HEADER + 13)
       };
+    } else if (atomName == "disk") {
+      atomData = {
+        "disk": data.getByteAt(offset + METADATA_HEADER + 11),
+        "total": data.getByteAt(offset + METADATA_HEADER + 13)
+      };
     } else {
       // 4: atom version (1 byte) + atom flags (3 bytes)
       // 4: NULL (usually locale indicator)
@@ -208,6 +213,11 @@ class MP4TagReader extends MediaTagReader {
       var dataLength = atomSize - atomHeader;
       var atomData;
 
+      // Workaround for covers being parsed as 'uint8' type despite being an 'covr' atom
+      if (atomName === 'covr' && type === 'uint8') {
+        type = 'jpeg'
+      }
+
       switch (type) {
         case "text":
         atomData = data.getStringWithCharsetAt(dataStart, dataLength, "utf-8").toString();
@@ -215,6 +225,27 @@ class MP4TagReader extends MediaTagReader {
 
         case "uint8":
         atomData = data.getShortAt(dataStart, false);
+        break;
+        
+        case "int":
+        case "uint":
+        // Though the QuickTime spec doesn't state it, there are 64-bit values
+        // such as plID (Playlist/Collection ID). With its single 64-bit floating
+        // point number type, these are hard to parse and pass in JavaScript.
+        // The high word of plID seems to always be zero, so, as this is the
+        // only current 64-bit atom handled, it is parsed from its 32-bit
+        // low word as an unsigned long.
+        //
+        var intReader = type == 'int'
+                          ? ( dataLength == 1 ? data.getSByteAt :
+                              dataLength == 2 ? data.getSShortAt :
+                              dataLength == 4 ? data.getSLongAt :
+                                                data.getLongAt)
+                          : ( dataLength == 1 ? data.getByteAt :
+                              dataLength == 2 ? data.getShortAt :
+                                                data.getLongAt);
+        // $FlowFixMe - getByteAt doesn't receive a second argument
+        atomData = intReader.call(data, dataStart + (dataLength == 8 ? 4 : 0), true);
         break;
 
         case "jpeg":
@@ -240,12 +271,16 @@ class MP4TagReader extends MediaTagReader {
   }
 }
 
+/*
+ * https://developer.apple.com/library/content/documentation/QuickTime/QTFF/Metadata/Metadata.html#//apple_ref/doc/uid/TP40000939-CH1-SW35
+*/
 const TYPES = {
   "0": "uint8",
   "1": "text",
   "13": "jpeg",
   "14": "png",
-  "21": "uint8"
+  "21": "int",
+  "22": "uint"
 };
 
 const ATOM_DESCRIPTIONS = {
@@ -291,6 +326,12 @@ const ATOM_DESCRIPTIONS = {
   "pgap": "Gapless Playback",
   "apID": "Purchase Account",
   "sfID": "Country Code",
+  "atID": "Artist ID",
+  "cnID": "Catalog ID",
+  "plID": "Collection ID",
+  "geID": "Genre ID",
+  "xid ": "Vendor Information",
+  "flvr": "Codec Flavor"
 };
 
 const UNSUPPORTED_ATOMS = {

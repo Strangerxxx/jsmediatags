@@ -12,13 +12,11 @@ import type {
 
 class BlobFileReader extends MediaFileReader {
   _blob: Blob;
-  // $FlowIssue - Flow gets confused with module.exports
   _fileData: ChunkedFileData;
 
   constructor(blob: Blob) {
     super();
     this._blob = blob;
-    // $FlowIssue - Constructor cannot be called on exports
     this._fileData = new ChunkedFileData();
   }
 
@@ -44,7 +42,7 @@ class BlobFileReader extends MediaFileReader {
     var browserFileReader = new FileReader();
 
     browserFileReader.onloadend = function(event) {
-      var intArray = new Uint8Array(browserFileReader.result);
+      var intArray = new Uint8Array(Number(browserFileReader.result));
       self._fileData.addData(range[0], intArray);
       callbacks.onSuccess();
     };
