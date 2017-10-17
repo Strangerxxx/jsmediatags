@@ -17,6 +17,7 @@ const FLACTagReader = require("./FLACTagReader");
 import type {
   CallbackType,
   LoadCallbackType,
+  StreamCallbackType
   ByteRange
 } from './FlowTypes';
 
@@ -260,6 +261,23 @@ class Config {
     XhrFileReader.setConfig({
       timeoutInSec: timeoutInSec
     });
+  }
+}
+
+class StreamReader {
+  _url: string;
+  _streamTagReader: any;
+
+  constructor(url: string) {
+    this._url = url;
+  }
+
+  setStreamTagReader(streamTagReader: any) {
+    this._streamTagReader = streamTagReader;
+  }
+
+  read(callbacks: StreamCallbackType) {
+
   }
 }
 
